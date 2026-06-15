@@ -38,9 +38,11 @@ impl CountedBitVec {
         let c = self.data[c_i];
         self.counts[c_i] + rank(c, i % u32::BITS)
     }
+    /*
     pub fn rank1(&self, i: u32) -> u32 {
         i - self.rank0(i)
     }
+    */
 }
 
 #[test]

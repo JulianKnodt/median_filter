@@ -1,11 +1,3 @@
-pub mod sorting_networks;
-
-pub mod wavelet_matrix;
-
-mod counted_bitvec;
-
-pub mod u16;
-
 macro_rules! sorting_step {
   ($arr: ident, $( $check: expr ),+) => {{$(
     let [v0, v1] = $check.map(|c| $arr[c]);
@@ -17,7 +9,7 @@ macro_rules! sorting_step {
 }
 
 /// 3x3 single channel median filter using sorting networks
-pub fn median_filter_3x3(img: &[u8], out: &mut [u8], w: usize, h: usize) {
+pub fn median_filter_3x3(img: &[u16], out: &mut [u16], w: usize, h: usize) {
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
@@ -60,7 +52,7 @@ pub fn median_filter_3x3(img: &[u8], out: &mut [u8], w: usize, h: usize) {
 }
 
 /// 3x3 single channel median filter using sorting networks
-pub fn median_filter_5x5(img: &[u8], out: &mut [u8], w: usize, h: usize) {
+pub fn median_filter_5x5(img: &[u16], out: &mut [u16], w: usize, h: usize) {
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
@@ -289,11 +281,11 @@ pub fn median_filter_5x5(img: &[u8], out: &mut [u8], w: usize, h: usize) {
 }
 
 #[test]
-fn test_median_filter_3x3() {
+fn test_median_filter_3x3_u16() {
     let mut img = vec![];
     const N: usize = 25;
     for i in 0..N {
-        img.push((i as u8).wrapping_mul(16));
+        img.push((i as u16).wrapping_mul(16));
     }
     let mut out = vec![0; N];
 
@@ -301,11 +293,11 @@ fn test_median_filter_3x3() {
 }
 
 #[test]
-fn test_median_filter_5x5() {
+fn test_median_filter_5x5_u16() {
     let mut img = vec![];
     const N: usize = 25;
     for i in 0..N {
-        img.push((i as u8).wrapping_mul(16));
+        img.push((i as u16).wrapping_mul(16));
     }
     let mut out = vec![0; N];
 
