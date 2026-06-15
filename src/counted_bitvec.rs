@@ -13,7 +13,7 @@ pub fn rank(x: u32, i: u32) -> u32 {
 
 impl CountedBitVec {
     pub fn new(size: u32) -> Self {
-        let elems = (size + u32::BITS - 1) / u32::BITS;
+        let elems = size / u32::BITS + 1;
         let data = vec![0; elems as usize];
         let counts = vec![0; elems as usize];
         Self { data, counts, size }
@@ -21,8 +21,7 @@ impl CountedBitVec {
     pub fn set(&mut self, i: u32) {
         debug_assert!(i < self.size);
         let chunk = i / u32::BITS;
-        let idx = i % u32::BITS;
-        self.data[chunk as usize] |= 1 << idx;
+        self.data[chunk as usize] |= 1 << (i % u32::BITS);
     }
 
     pub fn update_counts(&mut self) {
@@ -34,7 +33,7 @@ impl CountedBitVec {
     }
 
     pub fn rank0(&self, i: u32) -> u32 {
-        assert!(i < self.size, "!{i} < {}", self.size);
+        //assert!(i < self.size, "!{i} < {}", self.size);
         let c_i = (i / u32::BITS) as usize;
         let c = self.data[c_i];
         self.counts[c_i] + rank(c, i % u32::BITS)

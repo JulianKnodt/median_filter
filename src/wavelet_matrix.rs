@@ -19,7 +19,7 @@ impl Default for WaveletMatrix {
 impl WaveletMatrix {
     pub fn new(n: u32) -> Self {
         let size = ((n + u32::BITS - 1) / u32::BITS) * u32::BITS;
-        let src = vec![0; n as usize];
+        let src = vec![0; size as usize];
         Self {
             size,
             src,
@@ -34,7 +34,7 @@ impl WaveletMatrix {
 
     fn construct(&mut self, bit_len: u32) {
         self.bit_len = bit_len;
-        self.bitvecs = vec![CountedBitVec::new(self.size+1); bit_len as usize];
+        self.bitvecs = vec![CountedBitVec::new(self.size); bit_len as usize];
 
         let mut first = vec![];
         first.reserve(self.size as usize);
@@ -66,8 +66,8 @@ impl WaveletMatrix {
     // Number of values in interval less than val
     fn less_freq(&self, mut l: u32, mut r: u32, val: u32) -> u32 {
         let size = self.size;
-        assert!((0..size).contains(&l), "! 0 < {r} < {}", self.size);
-        assert!((0..size).contains(&r), "! 0 < {r} < {}", self.size);
+        assert!((0..size + 1).contains(&l), "! 0 < {r} < {}", self.size);
+        assert!((0..size + 1).contains(&r), "! 0 < {r} < {}", self.size);
         assert!((0..(1 << self.bit_len)).contains(&val));
 
         let mut res = 0;
@@ -87,8 +87,8 @@ impl WaveletMatrix {
         res
     }
     fn range_freq(&self, x0: u32, x1: u32, y0: u32, y1: u32) -> u32 {
-        //self.less_freq(x0, x1, y0) - self.less_freq(x0, x1, y1)
-        self.less_freq(x0, x1, y0).saturating_sub(self.less_freq(x0, x1, y1))
+        assert!(y1 > y0);
+        self.less_freq(x0, x1, y1) - self.less_freq(x0, x1, y0)
     }
 }
 
@@ -121,13 +121,13 @@ impl MedianWavelet {
             let mut wm = WaveletMatrix::new(hw);
             for j in 0..hw {
                 let (v, x) = buf[j as usize];
-                if (v >> i) & 1 == 0 {
-                    wm.set_preconstruct(j, x as u16);
-                    first.push((v, x));
+                let (val, d) = if (v >> i) & 1 == 0 {
+                    (x, &mut first)
                 } else {
-                    wm.set_preconstruct(j, w as u16);
-                    last.push((v, x));
-                }
+                    (w, &mut last)
+                };
+                wm.set_preconstruct(j, val as u16);
+                d.push((v, x));
             }
 
             std::mem::swap(&mut buf, &mut first);
@@ -142,11 +142,11 @@ impl MedianWavelet {
     pub fn quantile_2d(&self, x0: u32, x1: u32, y0: u32, y1: u32, mut k: u32) -> u8 {
         let w = self.w;
         let h = self.h;
-        assert!((0..w).contains(&x0));
-        assert!((0..w).contains(&x1));
+        assert!((0..w + 1).contains(&x0));
+        assert!((0..w + 1).contains(&x1));
 
-        assert!((0..h).contains(&y0));
-        assert!((0..h).contains(&y1));
+        assert!((0..h + 1).contains(&y0));
+        assert!((0..h + 1).contains(&y1));
 
         let mut l = y0 * w;
         let mut r = y1 * w;
