@@ -1,15 +1,62 @@
 macro_rules! sorting_step {
   ($arr: ident, $( $check: expr ),+) => {{$(
-    let [v0, v1] = $check.map(|c| $arr[c]);
-    if v1 < v0 {
+    let [v0, v1] = $check.map(|c| unsafe { *$arr.get_unchecked(c) });
+    if v1.total() < v1.total() {
       unsafe { *$arr.get_unchecked_mut($check[0]) = v1 };
       unsafe { *$arr.get_unchecked_mut($check[1]) = v0 };
     }
   )+}}
 }
 
-/// 3x3 single channel median filter using sorting networks
-pub fn median_filter_3x3(img: &[u16], out: &mut [u16], w: usize, h: usize) {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct WeightedVal<T> {
+    pub val: T,
+    pub w: f32,
+}
+
+pub trait WeightableValue: Into<f32> + Copy + PartialEq {}
+
+impl WeightableValue for u8 {}
+impl WeightableValue for u16 {}
+impl WeightableValue for f32 {}
+impl WeightableValue for i8 {}
+impl WeightableValue for i16 {}
+
+impl<T: WeightableValue> WeightedVal<T> {
+    pub fn total(&self) -> f32 {
+        self.val.into() * self.w
+    }
+}
+
+impl<T: WeightableValue> PartialOrd for WeightedVal<T> {
+    fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> {
+        self.total().partial_cmp(&o.total())
+    }
+}
+
+pub fn bilateral_u8(
+    img: &[u8],
+    w: usize,
+    sigma_value: f32,
+) -> impl Fn([usize; 2], [usize; 2]) -> f32 {
+    let denom = 2. * sigma_value * sigma_value;
+    move |[ax, ay], [bx, by]| {
+        let a = unsafe { *img.get_unchecked(ax + ay * w) };
+        let b = unsafe { *img.get_unchecked(bx + by * w) };
+
+        let delta = a.abs_diff(b) as f32;
+        let delta_sq = delta * delta;
+        (-delta_sq / denom).exp()
+    }
+}
+
+pub fn median_filter_3x3<T: WeightableValue>(
+    img: &[T],
+    out: &mut [T],
+    weight: impl Fn([usize; 2], [usize; 2]) -> f32,
+    w: usize,
+    h: usize,
+) {
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
@@ -33,7 +80,11 @@ pub fn median_filter_3x3(img: &[u16], out: &mut [u16], w: usize, h: usize) {
                 [next_y, x],
                 [next_y, next_x],
             ]
-            .map(|[y, x]| unsafe { *img.get_unchecked(y * w + x) });
+            .map(|[oy, ox]| {
+                let val = unsafe { *img.get_unchecked(oy * w + ox) };
+                let w = weight([ox, oy], [x, y]);
+                WeightedVal { val, w }
+            });
 
             // sorting network
             sorting_step!(arr, [0, 3], [1, 7], [2, 5], [4, 8]);
@@ -46,13 +97,19 @@ pub fn median_filter_3x3(img: &[u16], out: &mut [u16], w: usize, h: usize) {
 
             debug_assert!(arr.is_sorted());
 
-            out[y * w + x] = arr[4];
+            out[y * w + x] = arr[4].val;
         }
     }
 }
 
-/// 3x3 single channel median filter using sorting networks
-pub fn median_filter_5x5(img: &[u16], out: &mut [u16], w: usize, h: usize) {
+/// 5x5 single channel median filter using sorting networks
+pub fn median_filter_5x5<T: WeightableValue>(
+    img: &[T],
+    out: &mut [T],
+    weight: impl Fn([usize; 2], [usize; 2]) -> f32,
+    w: usize,
+    h: usize,
+) {
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
@@ -99,7 +156,11 @@ pub fn median_filter_5x5(img: &[u16], out: &mut [u16], w: usize, h: usize) {
                 [m2_y, m1_x],
                 [m2_y, m2_x],
             ]
-            .map(|[y, x]| unsafe { *img.get_unchecked(y * w + x) });
+            .map(|[oy, ox]| {
+                let val = unsafe { *img.get_unchecked(oy * w + ox) };
+                let w = weight([ox, oy], [x, y]);
+                WeightedVal { val, w }
+            });
 
             // sorting network
             sorting_step!(
@@ -275,31 +336,7 @@ pub fn median_filter_5x5(img: &[u16], out: &mut [u16], w: usize, h: usize) {
             );
 
             debug_assert!(arr.is_sorted());
-            out[y * w + x] = arr[12];
+            out[y * w + x] = arr[12].val;
         }
     }
-}
-
-#[test]
-fn test_median_filter_3x3_u16() {
-    let mut img = vec![];
-    const N: usize = 25;
-    for i in 0..N {
-        img.push((i as u16).wrapping_mul(16));
-    }
-    let mut out = vec![0; N];
-
-    median_filter_3x3(&img, &mut out, 5, 5);
-}
-
-#[test]
-fn test_median_filter_5x5_u16() {
-    let mut img = vec![];
-    const N: usize = 25;
-    for i in 0..N {
-        img.push((i as u16).wrapping_mul(16));
-    }
-    let mut out = vec![0; N];
-
-    median_filter_5x5(&img, &mut out, 5, 5);
 }

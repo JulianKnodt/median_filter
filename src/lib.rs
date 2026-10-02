@@ -4,11 +4,11 @@ pub mod wavelet_matrix;
 
 mod counted_bitvec;
 
-pub mod u16;
+pub mod weighted;
 
 macro_rules! sorting_step {
   ($arr: ident, $( $check: expr ),+) => {{$(
-    let [v0, v1] = $check.map(|c| $arr[c]);
+    let [v0, v1] = $check.map(|c| unsafe { *$arr.get_unchecked(c) });
     if v1 < v0 {
       unsafe { *$arr.get_unchecked_mut($check[0]) = v1 };
       unsafe { *$arr.get_unchecked_mut($check[1]) = v0 };
@@ -16,8 +16,17 @@ macro_rules! sorting_step {
   )+}}
 }
 
+pub trait Value: Copy + PartialEq + PartialOrd {}
+
+impl Value for u8 {}
+impl Value for u16 {}
+impl Value for u32 {}
+impl Value for f32 {}
+impl Value for i8 {}
+impl Value for i16 {}
+
 /// 3x3 single channel median filter using sorting networks
-pub fn median_filter_3x3(img: &[u8], out: &mut [u8], w: usize, h: usize) {
+pub fn median_filter_3x3<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize) {
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
@@ -59,8 +68,8 @@ pub fn median_filter_3x3(img: &[u8], out: &mut [u8], w: usize, h: usize) {
     }
 }
 
-/// 3x3 single channel median filter using sorting networks
-pub fn median_filter_5x5(img: &[u8], out: &mut [u8], w: usize, h: usize) {
+/// 5x5 single channel median filter using sorting networks
+pub fn median_filter_5x5<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize) {
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
@@ -306,6 +315,30 @@ fn test_median_filter_5x5() {
     const N: usize = 25;
     for i in 0..N {
         img.push((i as u8).wrapping_mul(16));
+    }
+    let mut out = vec![0; N];
+
+    median_filter_5x5(&img, &mut out, 5, 5);
+}
+
+#[test]
+fn test_median_filter_3x3_u16() {
+    let mut img = vec![];
+    const N: usize = 25;
+    for i in 0..N {
+        img.push((i as u16).wrapping_mul(16));
+    }
+    let mut out = vec![0; N];
+
+    median_filter_3x3(&img, &mut out, 5, 5);
+}
+
+#[test]
+fn test_median_filter_5x5_u16() {
+    let mut img = vec![];
+    const N: usize = 25;
+    for i in 0..N {
+        img.push((i as u16).wrapping_mul(16));
     }
     let mut out = vec![0; N];
 
