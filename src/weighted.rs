@@ -1,7 +1,7 @@
 macro_rules! sorting_step {
   ($arr: ident, $( $check: expr ),+) => {{$(
     let [v0, v1] = $check.map(|c| unsafe { *$arr.get_unchecked(c) });
-    if v1.total() < v1.total() {
+    if v1.total() < v0.total() {
       unsafe { *$arr.get_unchecked_mut($check[0]) = v1 };
       unsafe { *$arr.get_unchecked_mut($check[1]) = v0 };
     }
