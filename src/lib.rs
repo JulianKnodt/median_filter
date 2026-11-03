@@ -292,9 +292,49 @@ pub fn median_filter_5x5<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize)
             );
 
             debug_assert!(arr.is_sorted());
-            out[y * w + x] = arr[12];
+            *unsafe { out.get_unchecked_mut(y * w + x) } = arr[12];
         }
     }
+}
+
+/// 5x5 single channel median filter using an explicit sort of the following shape
+/**
+  0 1 2 3 4 5 6
+0 - - x x x - -
+1 - x       x -
+2 x           x
+3 x           x
+4 x           x
+5 - x       x -
+6 - - x x x - -
+**/
+pub fn median_filter_5x5_circ<T: Value + Ord>(img: &[T], out: &mut [T], w: usize, h: usize) {
+    assert_eq!(img.len(), w * h);
+    assert!(out.len() >= img.len());
+
+    let ss = usize::saturating_sub;
+    out.iter_mut().enumerate().for_each(|(i, dst)| {
+        let x = i % w;
+        let y = i / w;
+        #[rustfmt::skip]
+        let arr: [_; 37] = [
+                      [2,0],[3,0],[4,0],
+                [1,1],[2,1],[3,1],[4,1],[5,1],
+          [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+          [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],
+          [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],
+                [1,5],[2,5],[3,5],[4,5],[5,5],
+                      [2,6],[3,6],[4,6],
+        ];
+
+        let mut arr = arr.map(|[dy, dx]| {
+            let ny = ss(y + dy, 3).min(h - 1);
+            let nx = ss(x + dx, 3).min(w - 1);
+            unsafe { *img.get_unchecked(ny * w + nx) }
+        });
+        let (_, &mut mid, _) = arr.select_nth_unstable(37 / 2);
+        *dst = mid;
+    });
 }
 
 #[test]
