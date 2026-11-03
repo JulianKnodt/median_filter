@@ -7,12 +7,12 @@ use image;
 const IMG: &'static [u8] = include_bytes!("../valve.png");
 
 #[bench]
-fn bench_sobel_vertical(b: &mut test::Bencher) {
+fn bench_3x3(b: &mut test::Bencher) {
     let img = image::load_from_memory(IMG).unwrap();
     let w = img.width();
     let h = img.height();
 
-    let mut img = img.into_luma8().into_raw();
+    let img = img.into_luma8().into_raw();
 
     let mut buf = (0..w * h).map(|_| 0u8).collect::<Vec<_>>();
 
@@ -20,18 +20,44 @@ fn bench_sobel_vertical(b: &mut test::Bencher) {
     b.iter(|| median_filter_3x3(&img, &mut buf, w as usize, h as usize));
 }
 
-/*
 #[bench]
-fn bench_sobel_horizontal(b: &mut test::Bencher) {
+fn bench_5x5(b: &mut test::Bencher) {
     let img = image::load_from_memory(IMG).unwrap();
     let w = img.width();
     let h = img.height();
 
-    let mut img = img.into_luma8().into_raw();
+    let img = img.into_luma8().into_raw();
 
-    let mut buf = (0..w * h).map(|_| 0i8).collect::<Vec<_>>();
+    let mut buf = (0..w * h).map(|_| 0u8).collect::<Vec<_>>();
 
-    use median_filter::{median_filter_5x5};
-    b.iter(|| sobel_u8::sobel_horizontal(&mut img, w as usize, h as usize, &mut buf));
+    use median_filter::median_filter_5x5;
+    b.iter(|| median_filter_5x5(&img, &mut buf, w as usize, h as usize));
 }
-*/
+
+#[bench]
+fn bench_circ_diam7(b: &mut test::Bencher) {
+    let img = image::load_from_memory(IMG).unwrap();
+    let w = img.width();
+    let h = img.height();
+
+    let img = img.into_luma8().into_raw();
+
+    let mut buf = (0..w * h).map(|_| 0u8).collect::<Vec<_>>();
+
+    use median_filter::circ_diam7;
+    b.iter(|| circ_diam7(&img, &mut buf, w as usize, h as usize));
+}
+
+#[bench]
+fn bench_circ_diam9(b: &mut test::Bencher) {
+    let img = image::load_from_memory(IMG).unwrap();
+    let w = img.width();
+    let h = img.height();
+
+    let img = img.into_luma8().into_raw();
+
+    let mut buf = (0..w * h).map(|_| 0u8).collect::<Vec<_>>();
+
+    use median_filter::circ_diam9;
+    b.iter(|| circ_diam9(&img, &mut buf, w as usize, h as usize));
+}

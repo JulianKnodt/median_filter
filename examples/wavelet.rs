@@ -2,7 +2,7 @@ use median_filter::wavelet_matrix::MedianWavelet;
 
 pub fn main() -> std::io::Result<()> {
     let args = parse_args::parse_args!(
-      "Run a median filter on the input mesh",
+      "Run a median filter on the input image",
       Input("-i", "--input"; "Input Image") => input : String = String::new(),
       Output("-o", "--output"; "Output image") => output : String = String::new(),
       Rad5("-r", "--radius"; "Radius of median filter") => rad : u32 = 5,

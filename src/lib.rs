@@ -1,8 +1,9 @@
-pub mod sorting_networks;
+use rayon::prelude::*;
 
-pub mod wavelet_matrix;
+//pub mod sorting_networks;
 
 mod counted_bitvec;
+pub mod wavelet_matrix;
 
 pub mod weighted;
 
@@ -16,7 +17,7 @@ macro_rules! sorting_step {
   )+}}
 }
 
-pub trait Value: Copy + PartialEq + PartialOrd {}
+pub trait Value: Copy + PartialEq + PartialOrd + Send + Sync {}
 
 impl Value for u8 {}
 impl Value for u16 {}
@@ -30,6 +31,7 @@ pub fn median_filter_3x3<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize)
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
+    /*
     for y in 0..h {
         let prev_y = y.saturating_sub(1);
         let next_y = (y + 1).min(h - 1);
@@ -63,9 +65,45 @@ pub fn median_filter_3x3<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize)
 
             debug_assert!(arr.is_sorted());
 
-            out[y * w + x] = arr[4];
+            *unsafe { out.get_unchecked_mut(y * w + x) } = arr[4];
         }
     }
+    */
+    out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
+        let prev_y = y.saturating_sub(1);
+        let next_y = (y + 1).min(h - 1);
+        for (x, dst) in row.iter_mut().enumerate() {
+            let prev_x = x.saturating_sub(1);
+            let next_x = (x + 1).min(w - 1);
+
+            let mut arr = [
+                [prev_y, prev_x],
+                [prev_y, x],
+                [prev_y, next_x],
+                //
+                [y, prev_x],
+                [y, x],
+                [y, next_x],
+                //
+                [next_y, prev_x],
+                [next_y, x],
+                [next_y, next_x],
+            ]
+            .map(|[y, x]| unsafe { *img.get_unchecked(y * w + x) });
+
+            // sorting network
+            sorting_step!(arr, [0, 3], [1, 7], [2, 5], [4, 8]);
+            sorting_step!(arr, [0, 7], [2, 4], [3, 8], [5, 6]);
+            sorting_step!(arr, [0, 2], [1, 3], [4, 5], [7, 8]);
+            sorting_step!(arr, [1, 4], [3, 6], [5, 7]);
+            sorting_step!(arr, [0, 1], [2, 4], [3, 5], [6, 8]);
+            sorting_step!(arr, [2, 3], [4, 5], [6, 7]);
+            sorting_step!(arr, [1, 2], [3, 4], [5, 6]);
+            //sorting_step!(arr, [3, 4]);
+
+            *dst = arr[4];
+        }
+    });
 }
 
 /// 5x5 single channel median filter using sorting networks
@@ -73,12 +111,12 @@ pub fn median_filter_5x5<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize)
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
-    for y in 0..h {
+    out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
         let m1_y = y.saturating_sub(1);
         let m2_y = y.saturating_sub(2);
         let p1_y = (y + 1).min(h - 1);
         let p2_y = (y + 2).min(h - 1);
-        for x in 0..w {
+        for (x, dst) in row.iter_mut().enumerate() {
             let m2_x = x.saturating_sub(2);
             let m1_x = x.saturating_sub(1);
 
@@ -292,12 +330,13 @@ pub fn median_filter_5x5<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize)
             );
 
             debug_assert!(arr.is_sorted());
-            *unsafe { out.get_unchecked_mut(y * w + x) } = arr[12];
+            *dst = arr[12];
         }
-    }
+    });
 }
 
-/// 5x5 single channel median filter using an explicit sort of the following shape
+/// Single channel median filter using an explicit sort of the following circle
+/// with a diameter of 7 pixels
 /**
   0 1 2 3 4 5 6
 0 - - x x x - -
@@ -308,32 +347,81 @@ pub fn median_filter_5x5<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize)
 5 - x       x -
 6 - - x x x - -
 **/
-pub fn median_filter_5x5_circ<T: Value + Ord>(img: &[T], out: &mut [T], w: usize, h: usize) {
+pub fn circ_diam7<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize) {
     assert_eq!(img.len(), w * h);
     assert!(out.len() >= img.len());
 
     let ss = usize::saturating_sub;
-    out.iter_mut().enumerate().for_each(|(i, dst)| {
-        let x = i % w;
-        let y = i / w;
-        #[rustfmt::skip]
-        let arr: [_; 37] = [
-                      [2,0],[3,0],[4,0],
-                [1,1],[2,1],[3,1],[4,1],[5,1],
-          [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
-          [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],
-          [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],
-                [1,5],[2,5],[3,5],[4,5],[5,5],
-                      [2,6],[3,6],[4,6],
-        ];
+    out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
+        for (x, dst) in row.iter_mut().enumerate() {
+            #[rustfmt::skip]
+            let arr: [_; 37] = [
+                          [2,0],[3,0],[4,0],
+                    [1,1],[2,1],[3,1],[4,1],[5,1],
+              [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+              [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],
+              [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],
+                    [1,5],[2,5],[3,5],[4,5],[5,5],
+                          [2,6],[3,6],[4,6],
+            ];
 
-        let mut arr = arr.map(|[dy, dx]| {
-            let ny = ss(y + dy, 3).min(h - 1);
-            let nx = ss(x + dx, 3).min(w - 1);
-            unsafe { *img.get_unchecked(ny * w + nx) }
-        });
-        let (_, &mut mid, _) = arr.select_nth_unstable(37 / 2);
-        *dst = mid;
+            let mut arr = arr.map(|[dy, dx]| {
+                let ny = ss(y + dy, 3).min(h - 1);
+                let nx = ss(x + dx, 3).min(w - 1);
+                unsafe { *img.get_unchecked(ny * w + nx) }
+            });
+            use std::cmp::Ordering::*;
+            let (_, &mut mid, _) =
+                arr.select_nth_unstable_by(37 / 2, |a, b| if a < b { Less } else { Greater });
+            *dst = mid;
+        }
+    });
+}
+
+/// Single channel median filter using an explicit sort of the following circle
+/// with a diameter of 9 pixels
+/**
+  0 1 2 3 4 5 6 7 8
+0 - - - x x x - - -
+1 - x x       x x -
+2 - x           x -
+3 x               x
+4 x               x
+5 x               x
+6 - x           x -
+7 - x x       x x -
+8 - - - x x x - - -
+**/
+pub fn circ_diam9<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize) {
+    assert_eq!(img.len(), w * h);
+    assert!(out.len() >= img.len());
+
+    let ss = usize::saturating_sub;
+    out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
+        for (x, dst) in row.iter_mut().enumerate() {
+            #[rustfmt::skip]
+            let arr: [_; 61] = [
+                                [3,0],[4,0],[5,0],
+                    [1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],
+                    [1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],
+              [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],
+              [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],
+              [0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],
+                    [1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],
+                    [1,7],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],
+                                [3,0],[4,0],[5,0],
+            ];
+
+            let mut arr = arr.map(|[dy, dx]| {
+                let ny = ss(y + dy, 4).min(h - 1);
+                let nx = ss(x + dx, 4).min(w - 1);
+                unsafe { *img.get_unchecked(ny * w + nx) }
+            });
+            use std::cmp::Ordering::*;
+            let (_, &mut mid, _) =
+                arr.select_nth_unstable_by(61 / 2, |a, b| if a < b { Less } else { Greater });
+            *dst = mid;
+        }
     });
 }
 

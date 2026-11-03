@@ -202,5 +202,5 @@ fn test_wavelet_matrix_new() {
     let w = img.width();
     let h = img.height();
 
-    let mw = MedianWavelet::new(&img, w, h);
+    let _mw = MedianWavelet::new(&img, w, h);
 }
