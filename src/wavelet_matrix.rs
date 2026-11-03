@@ -18,7 +18,7 @@ impl Default for WaveletMatrix {
 
 impl WaveletMatrix {
     pub fn new(n: u32) -> Self {
-        let size = ((n + u32::BITS - 1) / u32::BITS) * u32::BITS;
+        let size = n.div_ceil(u32::BITS) * u32::BITS;
         let src = vec![0; size as usize];
         Self {
             size,
@@ -36,10 +36,8 @@ impl WaveletMatrix {
         self.bit_len = bit_len;
         self.bitvecs = vec![CountedBitVec::new(self.size); bit_len as usize];
 
-        let mut first = vec![];
-        first.reserve(self.size as usize);
-        let mut last = vec![];
-        last.reserve(self.size as usize);
+        let mut first = Vec::with_capacity(self.size as usize);
+        let mut last = Vec::with_capacity(self.size as usize);
 
         for i in (0..bit_len).rev() {
             first.clear();

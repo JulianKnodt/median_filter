@@ -61,3 +61,17 @@ fn bench_circ_diam9(b: &mut test::Bencher) {
     use median_filter::circ_diam9;
     b.iter(|| circ_diam9(&img, &mut buf, w as usize, h as usize));
 }
+
+#[bench]
+fn bench_circ_diam10(b: &mut test::Bencher) {
+    let img = image::load_from_memory(IMG).unwrap();
+    let w = img.width();
+    let h = img.height();
+
+    let img = img.into_luma8().into_raw();
+
+    let mut buf = (0..w * h).map(|_| 0u8).collect::<Vec<_>>();
+
+    use median_filter::circ_diam10;
+    b.iter(|| circ_diam10(&img, &mut buf, w as usize, h as usize));
+}

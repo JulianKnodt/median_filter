@@ -409,7 +409,7 @@ pub fn circ_diam9<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize) {
               [0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],
                     [1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],
                     [1,7],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],
-                                [3,0],[4,0],[5,0],
+                                [3,8],[4,8],[5,8],
             ];
 
             let mut arr = arr.map(|[dy, dx]| {
@@ -420,6 +420,57 @@ pub fn circ_diam9<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize) {
             use std::cmp::Ordering::*;
             let (_, &mut mid, _) =
                 arr.select_nth_unstable_by(61 / 2, |a, b| if a < b { Less } else { Greater });
+            *dst = mid;
+        }
+    });
+}
+
+/// Single channel median filter using an explicit sort of the following circle
+/// with a diameter of 10 pixels
+/**
+  0 1 2 3 4 5 6 7 8 9 0
+0 - - - - x x x - - - -
+1 - - x x       x x - -
+2 - x               x -
+3 - x               x -
+4 x                   x
+5 x                   x
+6 x                   x
+7 - x               x -
+8 - x               x -
+9 - - x x       x x - -
+0 - - - - x x x - - - -
+**/
+pub fn circ_diam10<T: Value>(img: &[T], out: &mut [T], w: usize, h: usize) {
+    assert_eq!(img.len(), w * h);
+    assert!(out.len() >= img.len());
+
+    let ss = usize::saturating_sub;
+    out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
+        for (x, dst) in row.iter_mut().enumerate() {
+            #[rustfmt::skip]
+            let arr: [_; 89] = [
+                                      [4,0],[5,0],[6,0],
+                          [2,1],[3,1],[4,1],[5,1],[6,1],[7,1],[8,1],
+                    [1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],
+                    [1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],
+              [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],
+              [0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],[10,5],
+              [0,6],[1,6],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6],[10,6],
+                    [1,7],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],
+                    [1,8],[2,8],[3,8],[4,8],[5,8],[6,8],[7,8],[8,8],[9,8],
+                          [2,9],[3,9],[4,9],[5,9],[6,9],[7,9],[8,9],
+                                    [4,10],[5,10],[6,10],
+            ];
+
+            let mut arr = arr.map(|[dy, dx]| {
+                let ny = ss(y + dy, 5).min(h - 1);
+                let nx = ss(x + dx, 5).min(w - 1);
+                unsafe { *img.get_unchecked(ny * w + nx) }
+            });
+            use std::cmp::Ordering::*;
+            let (_, &mut mid, _) =
+                arr.select_nth_unstable_by(89 / 2, |a, b| if a < b { Less } else { Greater });
             *dst = mid;
         }
     });
