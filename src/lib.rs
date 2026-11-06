@@ -1,3 +1,6 @@
+//#![allow(incomplete_features)]
+//#![feature(generic_const_exprs)]
+
 use rayon::prelude::*;
 
 //pub mod sorting_networks;
@@ -5,8 +8,11 @@ use rayon::prelude::*;
 mod counted_bitvec;
 pub mod wavelet_matrix;
 
+//pub mod heap;
+
 pub mod weighted;
 
+#[macro_export]
 macro_rules! sorting_step {
   ($arr: ident, $( $check: expr ),+) => {{$(
     let [v0, v1] = $check.map(|c| unsafe { *$arr.get_unchecked(c) });
@@ -17,7 +23,7 @@ macro_rules! sorting_step {
   )+}}
 }
 
-pub trait Value: Copy + PartialEq + PartialOrd + Send + Sync {}
+pub trait Value: Copy + PartialEq + PartialOrd + Send + Sync + Default {}
 
 impl Value for u8 {}
 impl Value for u16 {}
